@@ -40,6 +40,8 @@ The JMM defines when one thread's writes become **visible** to another. The core
 
 **G1 (Garbage-First): region-based, pause-target driven.** The heap is split into equal-sized **regions** (typically 1-32 MB) - not fixed young/old areas. Each region is classified by its content: **young**, **old**, **humongous** (one object bigger than half a region), or free.
 
+![G1 collection cycle](./g1-cycle.svg)
+
 ```
 G1 heap = N equal regions (1-32 MB), classified by content
 
@@ -69,6 +71,8 @@ G1 collection cycle ("garbage first" = reclaim least-live-data regions first)
 Why "garbage first": it collects the regions with the *least* live data first - cheapest bytes per pause, hence predictable pauses.
 
 **ZGC: colored pointers + load barriers.** On a 64-bit JVM there are spare bits in every reference (virtual address space < 64 bits). ZGC stores **mark/color metadata inside the pointer itself** ("colored pointers") instead of a side table.
+
+![ZGC colored pointers and load barrier](./zgc-colored-pointer.svg)
 
 ```
 ZGC colored pointer (64-bit JVM): color bits live in spare high address bits

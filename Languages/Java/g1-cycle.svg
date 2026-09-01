@@ -1,0 +1,111 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 920 560" font-family="'Segoe UI',Helvetica,Arial,sans-serif">
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M0,0 L9,3 L0,6 Z" fill="#4b5563"/>
+    </marker>
+  </defs>
+
+  <!-- Title -->
+  <text x="40" y="40" font-size="22" font-weight="700" fill="#1f2937">G1 (Garbage-First) Collector</text>
+  <text x="40" y="64" font-size="13" fill="#6b7280">Region-based heap, pause-target driven. "Garbage first" = reclaim the regions with the least live data first.</text>
+
+  <!-- HEAP section -->
+  <text x="40" y="108" font-size="13" font-weight="700" fill="#374151">HEAP — N equal regions (1–32 MB), classified by content</text>
+
+  <!-- region boxes: w=152, h=70, y=120 -->
+  <g>
+    <rect x="40"  y="120" width="152" height="70" rx="6" fill="#c8e6c9" stroke="#2e7d32"/>
+    <text x="116" y="150" font-size="14" font-weight="600" fill="#1b5e20" text-anchor="middle">young</text>
+    <text x="116" y="172" font-size="11" fill="#33691e" text-anchor="middle">recently allocated</text>
+
+    <rect x="212" y="120" width="152" height="70" rx="6" fill="#c8e6c9" stroke="#2e7d32"/>
+    <text x="288" y="150" font-size="14" font-weight="600" fill="#1b5e20" text-anchor="middle">young</text>
+    <text x="288" y="172" font-size="11" fill="#33691e" text-anchor="middle">recently allocated</text>
+
+    <rect x="384" y="120" width="152" height="70" rx="6" fill="#bbdefb" stroke="#1a73e8"/>
+    <text x="460" y="150" font-size="14" font-weight="600" fill="#0d47a1" text-anchor="middle">old</text>
+    <text x="460" y="172" font-size="11" fill="#1565c0" text-anchor="middle">long-lived objects</text>
+
+    <rect x="556" y="120" width="152" height="70" rx="6" fill="#eeeeee" stroke="#9e9e9e"/>
+    <text x="632" y="150" font-size="14" font-weight="600" fill="#424242" text-anchor="middle">free</text>
+    <text x="632" y="172" font-size="11" fill="#757575" text-anchor="middle">unallocated space</text>
+
+    <rect x="728" y="120" width="152" height="70" rx="6" fill="#ffe0b2" stroke="#f57c00"/>
+    <text x="804" y="150" font-size="14" font-weight="600" fill="#e65100" text-anchor="middle">humongous</text>
+    <text x="804" y="172" font-size="11" fill="#ef6c00" text-anchor="middle">one obj &gt; ½ region</text>
+  </g>
+
+  <!-- legend -->
+  <g font-size="12" fill="#374151">
+    <rect x="40" y="212" width="14" height="14" rx="3" fill="#c8e6c9" stroke="#2e7d32"/>
+    <text x="60" y="224">young</text>
+    <rect x="150" y="212" width="14" height="14" rx="3" fill="#bbdefb" stroke="#1a73e8"/>
+    <text x="170" y="224">old</text>
+    <rect x="230" y="212" width="14" height="14" rx="3" fill="#eeeeee" stroke="#9e9e9e"/>
+    <text x="250" y="224">free</text>
+    <rect x="310" y="212" width="14" height="14" rx="3" fill="#ffe0b2" stroke="#f57c00"/>
+    <text x="330" y="224">humongous</text>
+  </g>
+
+  <!-- divider -->
+  <line x1="40" y1="258" x2="880" y2="258" stroke="#e5e7eb"/>
+  <text x="40" y="292" font-size="13" font-weight="700" fill="#374151">COLLECTION CYCLE</text>
+
+  <!-- STW badge style: small red pill -->
+  <!-- Step boxes: w=180, h=150, y=312; x = 40,260,480,700 -->
+  <g>
+    <!-- Step 1 -->
+    <rect x="40" y="312" width="180" height="150" rx="8" fill="#f0f9f1" stroke="#2e7d32"/>
+    <text x="52" y="340" font-size="14" font-weight="700" fill="#1b5e20">Evacuation pause</text>
+    <rect x="168" y="322" width="46" height="20" rx="10" fill="#d32f2f"/>
+    <text x="191" y="336" font-size="11" font-weight="700" fill="#fff" text-anchor="middle">STW</text>
+    <g font-size="11.5" fill="#374151">
+      <text x="52" y="368">Young region fills:</text>
+      <text x="52" y="386">copy survivors, promote</text>
+      <text x="52" y="404">to old; dead regions are</text>
+      <text x="52" y="422">fully reclaimed.</text>
+    </g>
+
+    <!-- Step 2 -->
+    <rect x="260" y="312" width="180" height="150" rx="8" fill="#f5f9ff" stroke="#1a73e8"/>
+    <text x="272" y="340" font-size="14" font-weight="700" fill="#0d47a1">Concurrent mark</text>
+    <g font-size="11.5" fill="#374151">
+      <text x="272" y="368">Mutators keep running;</text>
+      <text x="272" y="386">RFO (remembered set)</text>
+      <text x="272" y="404">tracks cross-region refs.</text>
+      <text x="272" y="422" fill="#15803d">No stop-the-world.</text>
+    </g>
+
+    <!-- Step 3 -->
+    <rect x="480" y="312" width="180" height="150" rx="8" fill="#fff7ef" stroke="#f57c00"/>
+    <text x="492" y="340" font-size="14" font-weight="700" fill="#e65100">Mixed collection</text>
+    <rect x="608" y="322" width="46" height="20" rx="10" fill="#d32f2f"/>
+    <text x="631" y="336" font-size="11" font-weight="700" fill="#fff" text-anchor="middle">STW</text>
+    <g font-size="11.5" fill="#374151">
+      <text x="492" y="368">Each STW pause = all</text>
+      <text x="492" y="386">young + most garbage-heavy</text>
+      <text x="492" y="404">old. Targets MaxGCPause</text>
+      <text x="492" y="422">Millis (default 200 ms).</text>
+    </g>
+
+    <!-- Step 4 -->
+    <rect x="700" y="312" width="180" height="150" rx="8" fill="#f9fafb" stroke="#6b7280"/>
+    <text x="712" y="340" font-size="14" font-weight="700" fill="#374151">Reclaim old regions</text>
+    <g font-size="11.5" fill="#374151">
+      <text x="712" y="368">Least-live-data regions</text>
+      <text x="712" y="386">first → predictable pauses.</text>
+      <text x="712" y="404">Steady state: no full GC</text>
+      <text x="712" y="422">needed.</text>
+    </g>
+  </g>
+
+  <!-- arrows between steps at y=387 -->
+  <g stroke="#4b5563" stroke-width="2" fill="none">
+    <line x1="220" y1="387" x2="258" y2="387" marker-end="url(#arrow)"/>
+    <line x1="440" y1="387" x2="478" y2="387" marker-end="url(#arrow)"/>
+    <line x1="660" y1="387" x2="698" y2="387" marker-end="url(#arrow)"/>
+  </g>
+
+  <!-- bottom note -->
+  <text x="40" y="512" font-size="12" fill="#6b7280">STW = stop-the-world pause. G1 is the default collector since Java 9 (JEP 248).</text>
+</svg>
