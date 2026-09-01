@@ -52,7 +52,7 @@ void vec::assign(const vec& other) {
 ## Move semantics & perfect forwarding deep dive
 - **Rvalue references** (`T&&`) name expiring temporaries; `std::move` is just a cast to an rvalue reference - it moves nothing by itself.
 - **Moved-from state invariant:** after a move the source must be valid but unspecified - destructible and assignable. Don't read moved-from values for logic.
-- **Copy elision:** the compiler may omit copies/moves; since C++17, **NRVO is guaranteed** for returning a local variable. Never write `return std::move(x);` for a local - it can *prevent* elision.
+- **Copy elision:** the compiler may omit copies/moves. Since C++17, returning a **prvalue** (unnamed temporary) is guaranteed to involve no copy/move ("guaranteed copy elision"); **NRVO** for a *named local variable* is still only *permitted*, not mandated (C++17-23). Never write `return std::move(x);` for a local - it can *prevent* elision.
 - **Forwarding (universal) references:** a parameter of the form `T&&` where T is deduced is a *forwarding reference*, not an rvalue ref:
 ```cpp
 template <class T> void f(T&& param) { } // forwarding reference

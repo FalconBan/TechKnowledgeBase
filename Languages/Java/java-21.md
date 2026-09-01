@@ -36,6 +36,67 @@ The JMM defines when one thread's writes become **visible** to another. The core
 - **Tuning knobs:** `-Xmx`/`-Xms` (heap), `-XX:+UseZGC`, `MaxGCPauseMillis`. Prefer ergonomics first; tune only with a measured problem.
 - **What GC does NOT do:** it never collects a live object graph, and it doesn't free native/off-heap memory (use `Cleaner`/`PhantomReference`).
 
+### G1 vs ZGC - how they actually operate
+
+**G1 (Garbage-First): region-based, pause-target driven.** The heap is split into equal-sized **regions** (typically 1-32 MB) - not fixed young/old areas. Each region is classified by its content: **young**, **old**, **humongous** (one object bigger than half a region), or free.
+
+```
+G1 heap = N equal regions (1-32 MB), classified by content
+
+  +-------+-------+-------+------+-----------+
+  | young | young | old   | free | humongous|
+  +-------+-------+-------+------+-----------+
+  humongous = one object larger than half a region (gets its own)
+
+G1 collection cycle ("garbage first" = reclaim least-live-data regions first)
+
+  young region fills
+      -> [STW] evacuation pause: copy survivors, promote to old,
+         dead regions fully reclaimed
+      -> concurrent mark: mutators run; RFO tracks cross-region refs
+      -> mixed collection (on old-space pressure): each STW pause =
+         all young + most garbage-heavy old regions; target
+         MaxGCPauseMillis (default 200 ms, not a guarantee)
+      -> reclaimed old regions: steady state, no full GC needed
+```
+
+**One G1 cycle:**
+1. **Evacuation pause (young):** a young region fills -> G1 copies live objects into free space; dead regions are fully reclaimed; survivors get promoted to old regions.
+2. **Concurrent mark:** under old-space pressure, G1 marks live objects in the background while mutators keep running (short STW initial mark + cleanup bracket it).
+3. **Mixed collections:** repeatedly, each pause evacuates *all* young regions plus a few of the most garbage-heavy old regions, targeting `-XX:MaxGCPauseMillis` (default 200 ms - a target, not a guarantee). Old regions get fully reclaimed, so steady state needs no full GC.
+4. **RFO (remembered set):** cross-region references are tracked so evacuation can pick which old regions to include without scanning everything.
+
+Why "garbage first": it collects the regions with the *least* live data first - cheapest bytes per pause, hence predictable pauses.
+
+**ZGC: colored pointers + load barriers.** On a 64-bit JVM there are spare bits in every reference (virtual address space < 64 bits). ZGC stores **mark/color metadata inside the pointer itself** ("colored pointers") instead of a side table.
+
+```
+ZGC colored pointer (64-bit JVM): color bits live in spare high address bits
+
+  +-------+-------+-------------+------------------------+
+  | Mark0 | Mark1 | Finalizable | virtual address        |
+  +-------+-------+-------------+------------------------+
+  metadata inside the reference - no side table; CPU never uses these bits
+
+every reference load goes through a barrier:
+
+  load ref --> color bits current?
+            yes -> use directly
+            no  -> follow forwarding table, fix pointer in place
+```
+
+**Operation (nearly all concurrent):**
+1. **Concurrent mark:** mutators keep running; a *write barrier* records every reference mutation so marks stay accurate.
+2. **Concurrent relocation:** live objects are copied to new locations and a forwarding table is built. On *every* load of a reference, the **load barrier** checks the color bits and transparently redirects stale pointers - readers never see a torn state, and no STW is needed for the copy itself.
+3. **Final fixup:** a very short stop-the-world pause (single-digit ms) only to finalize pointer updates; this is why pause times are essentially independent of heap size (hundreds of MB up to 16 TB).
+
+**Generational ZGC (JEP 439, Java 21):** adds an explicit young/old split inside ZGC - collect the young gen first so most collections are short and cheap; old-gen work happens less often. Big throughput win on large heaps.
+
+| | G1 | ZGC |
+|--|----|-----|
+| Model | Region evacuation toward a pause target | Concurrent mark/relocate via colored pointers |
+| Pause behavior | Targeted (`MaxGCPauseMillis`), can slip under load | Independent of heap size, single-digit ms |
+| Best for | Most servers (default since 9) | Low-latency / multi-TB heaps |
 
 ## Language features & modern additions (8 -> 21)
 - **Java 8:** lambdas, **streams API**, `@FunctionalInterface`, `Optional`, default methods in interfaces.
@@ -150,4 +211,7 @@ static <T> void addAll(List<? super T> dst, Iterable<T> it) { for (T t : it) dst
 12. What can't you do because of type erasure (give two concrete examples)?
 13. Why are parallel streams sometimes slower or wrong, and when are they a good idea?
 14. In try-with-resources, in what order are resources closed, and how are exceptions handled?
+15. G1 vs ZGC - how does each decide *what* to collect and *when*, and why is ZGC's pause independent of heap size?
+16. What is a "colored pointer" in ZGC, and what job does the load barrier do on every reference read?
+17. When would you reach for generational ZGC (JEP 439) over plain ZGC, and why?
 
