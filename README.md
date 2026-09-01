@@ -12,6 +12,8 @@ A quick-reference + interview-prep KB. Each file is self-contained and skimmable
 | Databases (SQL) | `Databases\SQL\relational-databases.md` | ACID, indexing, transactions, schema design |
 | Databases (NoSQL) | `Databases\NoSQL\nosql-databases.md` | Key-value/doc/column/graph, when-to-use |
 | OS & Networking | `OS-Networking\os-basics.md` | Processes/threads, TCP/IP, HTTP/DNS |
+| C++ (up to C++20) | `Languages\C++\cpp-cpp20.md` | Value semantics, RAII, modern C++11-20, concurrency, gotchas |
+| Java (up to 21) | `Languages\Java\java-21.md` | Memory/GC, streams, virtual threads, records, design patterns |
 | Cheat Sheet | `Cheatsheets\interview-questions.md` | Rapid-fire Q&A across topics |
 
 ## How to use this KB
