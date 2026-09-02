@@ -21,6 +21,16 @@ The JMM defines when one thread's writes become **visible** to another. The core
 4. **Thread lifecycle** - `start()` hb everything in the started thread; everything in a thread hb its successful `join()`.
 5. **Transitivity** - if A hb B and B hb C, then A hb C.
 
+![The five happens-before ordering rules](./happens-before.svg)
+
+```
+  program order (same thread):   A -----> B
+  monitor:                       unlock(m) -----> lock(m)
+  volatile:                      write(v) -----> read(v)
+  thread lifecycle:              start()/end -----> first action / join()
+  transitivity:                  A hb B, B hb C  =>  A hb C
+```
+
 **Also:** writes to `final` fields during construction are safely published (no reordering past the end of the constructor), so other threads see correctly-initialized finals once they get the reference.
 
 **Practical rules:**
@@ -167,11 +177,35 @@ switch (o) {
 - **M:N scheduling:** many virtual threads share a small pool of platform "carrier" threads. A blocking I/O call *unmounts* the virtual thread so its carrier can run another - high concurrency without paying for OS-thread memory/stack per task.
 - **Use them for I/O-bound, thread-per-request** code (HTTP handlers, DB calls). They make `CompletableFuture`/thread-pool plumbing unnecessary for that pattern.
 - **Pinning:** a virtual thread can't unmount while it holds a `synchronized` monitor or is inside certain native/JNI calls - the carrier is stuck with it and other VTs on that carrier stall. Avoid `synchronized` (use `ReentrantLock`) and be aware of JNI/native blocking.
+
+![Virtual-thread M:N mapping and the pinning trap](./vt-pinning.svg)
+
+```
+Carrier #1 (platform thread)
+  |
+  +-- VT-B running        +-- VT-A blocked on I/O  -> unmounts, carrier FREE
+
+PINNED: Carrier #1 stuck with VT-A (holds a synchronized monitor)
+  |
+  +-- VT-A pinned         +-- VT-B stalled, VT-C stalled (can't run)
+```
+
 - **Not for CPU-bound work** - you still need ~#cores; virtual threads add no parallelism there.
 - **Scoped values / structured concurrency (preview):** group related tasks as one unit so a scope's failure cancels its children - the answer to "how do I not leak background threads?"
 
 ### Pitfalls (interview gold)
 - **Deadlock:** two+ threads each hold a lock the other needs. Break with consistent lock ordering or `tryLock` + timeout.
+
+![Deadlock circular wait](./deadlock-cycle.svg)
+
+```
+  Thread A            Thread B
+    |                   |
+  holds Lock1       holds Lock2
+    \                 /
+     waits for      waits for        <- circular wait = DEADLOCK
+```
+
 - **Livelock / starvation:** threads keep moving but make no progress; unbounded retry without backoff.
 - **Lost update:** read-modify-write without atomicity - even on a `volatile` field.
 - **Memory visibility bugs:** non-volatile shared writes are invisible across threads (JMM).

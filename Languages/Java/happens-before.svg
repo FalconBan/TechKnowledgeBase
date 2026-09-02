@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 920 520" font-family="'Segoe UI',Helvetica,Arial,sans-serif">
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M0,0 L9,3 L0,6 Z" fill="#4b5563"/>
+    </marker>
+  </defs>
+
+  <!-- Title -->
+  <text x="40" y="40" font-size="22" font-weight="700" fill="#1f2937">Happens-before — the 5 ordering rules</text>
+  <text x="40" y="64" font-size="13" fill="#6b7280">If A happens-before B, then A's writes are visible to B and ordered before it.</text>
+
+  <!-- Row 1: program order (green) -->
+  <rect x="120" y="123" width="230" height="54" rx="8" fill="#f0f9f1" stroke="#2e7d32"/>
+  <text x="235" y="156" font-size="13" font-weight="600" fill="#1b5e20" text-anchor="middle">A — earlier action</text>
+  <line x1="350" y1="150" x2="570" y2="150" stroke="#4b5563" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="460" y="140" font-size="12" font-weight="700" fill="#2e7d32" text-anchor="middle">program order (same thread)</text>
+  <rect x="570" y="123" width="230" height="54" rx="8" fill="#f0f9f1" stroke="#2e7d32"/>
+  <text x="685" y="156" font-size="13" font-weight="600" fill="#1b5e20" text-anchor="middle">B — later action</text>
+
+  <!-- Row 2: monitor (blue) -->
+  <rect x="120" y="195" width="230" height="54" rx="8" fill="#f5f9ff" stroke="#1a73e8"/>
+  <text x="235" y="228" font-size="13" font-weight="600" fill="#0d47a1" text-anchor="middle">unlock(m)</text>
+  <line x1="350" y1="222" x2="570" y2="222" stroke="#4b5563" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="460" y="212" font-size="12" font-weight="700" fill="#1a73e8" text-anchor="middle">monitor: unlock hb lock</text>
+  <rect x="570" y="195" width="230" height="54" rx="8" fill="#f5f9ff" stroke="#1a73e8"/>
+  <text x="685" y="228" font-size="13" font-weight="600" fill="#0d47a1" text-anchor="middle">lock(m)</text>
+
+  <!-- Row 3: volatile (orange) -->
+  <rect x="120" y="267" width="230" height="54" rx="8" fill="#fff7ef" stroke="#f57c00"/>
+  <text x="235" y="300" font-size="13" font-weight="600" fill="#e65100" text-anchor="middle">volatile write</text>
+  <line x1="350" y1="294" x2="570" y2="294" stroke="#4b5563" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="460" y="284" font-size="12" font-weight="700" fill="#f57c00" text-anchor="middle">write hb later read</text>
+  <rect x="570" y="267" width="230" height="54" rx="8" fill="#fff7ef" stroke="#f57c00"/>
+  <text x="685" y="300" font-size="13" font-weight="600" fill="#e65100" text-anchor="middle">volatile read</text>
+
+  <!-- Row 4: thread lifecycle (gray) -->
+  <rect x="120" y="339" width="230" height="54" rx="8" fill="#f9fafb" stroke="#6b7280"/>
+  <text x="235" y="372" font-size="13" font-weight="600" fill="#374151" text-anchor="middle">T.start() / T ends</text>
+  <line x1="350" y1="366" x2="570" y2="366" stroke="#4b5563" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="460" y="356" font-size="12" font-weight="700" fill="#374151" text-anchor="middle">thread lifecycle</text>
+  <rect x="570" y="339" width="230" height="54" rx="8" fill="#f9fafb" stroke="#6b7280"/>
+  <text x="685" y="372" font-size="13" font-weight="600" fill="#374151" text-anchor="middle">first action / join() returns</text>
+
+  <!-- Row 5: transitivity banner -->
+  <rect x="40" y="410" width="840" height="60" rx="8" fill="#f9fafb" stroke="#6b7280"/>
+  <text x="460" y="436" font-size="13" font-weight="700" fill="#374151" text-anchor="middle">Rule 5 — transitivity:</text>
+  <text x="460" y="458" font-size="12" fill="#374151" text-anchor="middle">if A hb B and B hb C, then A hb C (composes across all the edges above).</text>
+</svg>
