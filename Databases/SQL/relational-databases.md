@@ -27,7 +27,7 @@
 
 ### PostgreSQL
 - **Capabilities:** Full ACID + strong MVCC; rich types (JSONB, arrays, ranges, hstore); advanced indexes (GIST/GIN for spatial, full-text, JSON); window functions, CTEs, generated columns; first-class extensions (e.g., PostGIS); logical & physical replication.
-- **Limitations:** One-writer at a time per database (many readers fine) - very high concurrent-write workloads need care; horizontal scale is via add-ons (Citus, etc.), not built-in; heavier to operate than SQLite.
+- **Limitations:** MVCC leaves dead tuples on update/delete (autovacuum needed under heavy churn); handles many concurrent writers fine; horizontal scale is via add-ons (Citus, etc.), not built-in; heavier to operate than SQLite.
 - **Pick when:** The default "batteries-included" relational choice; complex queries; mixed OLTP + light analytics; need flexible types and extensions.
 
 ### MySQL / MariaDB

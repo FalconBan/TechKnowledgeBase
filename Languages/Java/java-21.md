@@ -111,7 +111,7 @@ every reference load goes through a barrier:
 - **Java 21 (LTS):** **virtual threads** (final), **pattern matching for `switch`** (final), **record patterns** (final), **sequenced collections**, structured concurrency (preview), string templates (preview), foreign function & memory API (preview).
 
 ## Records, sealed types & pattern matching for switch (Java 16-21)
-- **Records (final in 16):** an immutable data carrier. The compiler generates the canonical constructor, component accessors, and `equals`/`hashCode`/`toString`. Supports compact constructors, static members, and instance methods; no extra instance fields beyond the components. `with()` (Java 19+) builds a modified copy.
+- **Records (final in 16):** an immutable data carrier. The compiler generates the canonical constructor, component accessors, and `equals`/`hashCode`/`toString`. Supports compact constructors, static members, and instance methods; no extra instance fields beyond the components. A modified copy is just a new record built from the existing components (write your own helper); there is **no generated `with()`** - the proposed "wither" (`e with { ... }`, JEP 468) is preview-only and not in any released version.
 - **Sealed classes (final in 17):** restrict subtypes - `sealed class Shape permits Circle, Square`. Permitted subtypes must be `final`, `sealed`, or `non-sealed`. This is what makes exhaustive pattern matching possible.
 - **Pattern matching for `instanceof` (final in 16):** `if (o instanceof String s) { use s; }` - no cast, null-safe.
 - **Switch pattern matching + record patterns (final in 21):**
@@ -126,11 +126,57 @@ switch (o) {
   - Record patterns destructure nested data; guards use `when`.
 
 
-## Concurrency & the new threading model
-- `Thread`, `Runnable`, `ExecutorService`, thread pools, `CompletableFuture`.
-- `java.util.concurrent`: `ConcurrentHashMap`, atomics, locks (`ReentrantLock`), `ForkJoinPool`.
-- **Immutability is the primary thread-safety strategy** - share immutable state freely.
-- **Virtual threads (Java 21):** lightweight M:N threads; ideal for high-concurrency I/O-bound code. Caveat: don't **pin** them (avoid `synchronized` blocks / native calls on a virtual thread).
+## Threading & Concurrency
+
+**Two models, one API surface.** Java gives you OS-backed **platform threads** (1:1 with a kernel thread) and, since 21, **virtual threads** (M:N, scheduled by the JVM on top of platform "carrier" threads). Everything below works on both; the choice is which to reach for.
+
+### Starting & managing threads
+- `Thread` / `Runnable` (void work), `Callable<V>` (returns a value), or submit to an **`ExecutorService`** (`submit`, `invokeAll`). Prefer executors over raw `new Thread()` - you get pooling, shutdown, and task lifecycle.
+- Lifecycle states: `NEW -> RUNNABLE -> (BLOCKED | WAITING | TIMED_WAITING) -> TERMINATED`. Know them for debugging ("why is my thread stuck?").
+- **Daemon** threads don't stop the JVM from exiting; **priorities** are largely ignored by modern OS schedulers - don't rely on them.
+
+### Synchronization primitives
+- **`synchronized`:** a reentrant monitor lock + a happens-before edge on unlock->lock (see JMM above). Can't be interrupted, timed out, or acquired conditionally - and it **pins** virtual threads.
+- **`ReentrantLock`:** same mutual exclusion, but adds `tryLock()`, `lockInterruptibly()`, fairness, and **condition variables** (`newCondition()`). Use when you need any of those - or to avoid pinning on virtual threads.
+- **`volatile`:** visibility + ordering only; no atomicity for compound ops (see JMM above).
+- **Atomics:** `AtomicInteger`, `AtomicReference`, etc. use **CAS** (compare-and-swap) - lock-free, but beware ABA and that a CAS spin isn't free under heavy contention.
+- **`AbstractQueuedSynchronizer` (AQS):** the base for `CountDownLatch`, `Semaphore`, `ReentrantLock`, `StampedLock` - understand it to read the rest.
+
+### Coordination & waiting
+- **Condition variables** (`await()`/`signal()`) paired with a lock; **`CountDownLatch`** (one-shot), **`CyclicBarrier`** (reusable, n parties meet at a point), **`Semaphore`** (permits), **`Exchanger`**.
+- **Interrupts are the cancellation protocol:** check `Thread.interrupted()` / handle `InterruptedException`; never swallow it.
+
+### Thread pools (what you'll actually ship)
+- **Why not raw threads:** pooling bounds memory, reuses OS threads, and gives a work queue + rejection policy.
+- **`ExecutorService`** = pool + task lifecycle (`submit`, `shutdown`, `awaitTermination`). Sizing: I/O-bound -> ~2× cores (or just use virtual threads); CPU-bound -> ~cores (+1).
+- **`ForkJoinPool`:** work-stealing; backs parallel streams. The common pool is shared - don't put blocking calls in it.
+
+### CompletableFuture (async composition)
+- Build pipelines: `thenApply`, `thenCompose` (flat), `thenCombine`, `exceptionally`, `whenComplete`.
+- Runs on the **common ForkJoinPool** by default (or a supplied executor); start with `supplyAsync`/`runAsync`. Don't block a pool thread waiting on itself - prefer chaining.
+
+### Thread-safe collections
+| Type | Notes |
+|------|-------|
+| `ConcurrentHashMap` | striped/CAS; `compute`, `merge`; weakly consistent iterators |
+| `CopyOnWriteArrayList` / `Set` | safe for iteration-heavy, write-rare (listener lists) |
+| Blocking queues (`ArrayBlockingQueue`, `LinkedBlockingQueue`) | bounded/unbounded FIFO - the producer-consumer backbone |
+| `ConcurrentSkipListMap` | sorted + concurrent |
+
+### Virtual threads (Java 21) - the big one
+- **M:N scheduling:** many virtual threads share a small pool of platform "carrier" threads. A blocking I/O call *unmounts* the virtual thread so its carrier can run another - high concurrency without paying for OS-thread memory/stack per task.
+- **Use them for I/O-bound, thread-per-request** code (HTTP handlers, DB calls). They make `CompletableFuture`/thread-pool plumbing unnecessary for that pattern.
+- **Pinning:** a virtual thread can't unmount while it holds a `synchronized` monitor or is inside certain native/JNI calls - the carrier is stuck with it and other VTs on that carrier stall. Avoid `synchronized` (use `ReentrantLock`) and be aware of JNI/native blocking.
+- **Not for CPU-bound work** - you still need ~#cores; virtual threads add no parallelism there.
+- **Scoped values / structured concurrency (preview):** group related tasks as one unit so a scope's failure cancels its children - the answer to "how do I not leak background threads?"
+
+### Pitfalls (interview gold)
+- **Deadlock:** two+ threads each hold a lock the other needs. Break with consistent lock ordering or `tryLock` + timeout.
+- **Livelock / starvation:** threads keep moving but make no progress; unbounded retry without backoff.
+- **Lost update:** read-modify-write without atomicity - even on a `volatile` field.
+- **Memory visibility bugs:** non-volatile shared writes are invisible across threads (JMM).
+- **An uncaught exception kills only that thread** but can silently drop a pool task; use `Future.get()` or an uncaught handler.
+- **Don't share mutable state you don't have to** - the cheapest fix is immutability.
 
 ## Collections & common APIs
 | Collection | Backing | Notes |
@@ -149,7 +195,7 @@ switch (o) {
   - Can't create an array or instance of a type variable (`new T[]`, `new T(...)` are illegal) - no runtime type to instantiate.
   - Can't catch/throw a generic exception.
   - All parameterized types erase to their raw form at runtime, so `List<String>` and `List<Integer>` are both just `List` (this is how **heap pollution** sneaks in via raw types).
-- **What survives:** reified type arguments only inside `varargs` (so `T.class` works there), and you can always cast to `Class<?>`.
+- **Reifiable vs non-reifiable:** primitives, raw types, and unbounded wildcards are *reifiable* (type info fully available at runtime); a parameterized type like `List<String>` is *non-reifiable* (erased). You can't create an array of a non-reifiable type (`List<String>[]` is illegal) - so a varargs param declared with one (`List<String>...`) is a **heap-pollution** risk; annotate the method `@SafeVarargs`.
 - **Wildcards:** `? extends T` = read from it ("produces"); `? super T` = write to it ("consumes"); unbounded `?` = unknown type.
 - **PECS** (Producer Extends, Consumer Super):
 ```java
@@ -218,4 +264,7 @@ static <T> void addAll(List<? super T> dst, Iterable<T> it) { for (T t : it) dst
 15. G1 vs ZGC - how does each decide *what* to collect and *when*, and why is ZGC's pause independent of heap size?
 16. What is a "colored pointer" in ZGC, and what job does the load barrier do on every reference read?
 17. When would you reach for generational ZGC (JEP 439) over plain ZGC, and why?
+18. Virtual threads vs platform threads - when do virtual threads win, and what makes a virtual thread *pin* to its carrier?
+19. `synchronized` vs `ReentrantLock` - name three things a lock gives you that a monitor doesn't.
+20. Why is an `ExecutorService` preferred over raw `new Thread()`, and how do you size a pool for I/O-bound vs CPU-bound work?
 
